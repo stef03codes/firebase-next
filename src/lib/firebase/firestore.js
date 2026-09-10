@@ -42,15 +42,61 @@ export async function addReviewToRestaurant(db, restaurantId, review) {
 }
 
 function applyQueryFilters(q, { category, city, price, sort }) {
-  return;
+  if(category) {
+    q = query(q, where("category", "==", category));
+  }
+
+  if(city) {
+    q = query(q, where("city", "==", city));
+  }
+
+  if(price) {
+    q = query(q, where("price", "==", price));
+  }
+
+  if(sort === "Rating" || !sort) {
+    q = query(q, orderBy("avgRating", "desc"));
+  } else if(sort === "Review") {
+    q = query(q, orderBy("numRatings", "desc"));
+  }
+  
+  return q;
 }
 
 export async function getRestaurants(db = db, filters = {}) {
-  return [];
+  let q = query(collection(db, "restaurants"));
+
+  q = applyQueryFilters(q, filters);
+
+  const results = await getDocs(q);
+  return results.docs.map((doc) => {
+    return {
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp.toDate(),
+    }
+  });
 }
 
 export function getRestaurantsSnapshot(cb, filters = {}) {
-  return;
+  if(typeof cb !== "function") {
+    console.log("Error: The callback parameter is not a function");
+    return;
+  }
+
+  let q = query(collection(db, "restaurants"));
+  q = applyQueryFilters(q, filters);
+
+  return onSnapshot(q, (querySnapshot) => {
+    const results = querySnapshot.docs.map((doc) => {
+      return {
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp.toDate(),
+      }
+    })
+    cb(results);
+  });
 }
 
 export async function getRestaurantById(db, restaurantId) {
@@ -67,7 +113,25 @@ export async function getRestaurantById(db, restaurantId) {
 }
 
 export function getRestaurantSnapshotById(restaurantId, cb) {
-  return;
+  if (!restaurantId) {
+    console.log("Error: Invalid ID received: ", restaurantId);
+    return;
+  }
+
+  if(typeof cb !== "function") {
+    console.log("Error: The callback parameter is not a function");
+    return;
+  }
+
+  const docRef = doc(db, "restaurants", restaurantId);
+
+  return onSnapshot(docRef, (docSnap) => {
+    cb({
+      id: docSnap.id,
+      ...docSnap.data(),
+      timestamp: docSnap.data().timestamp.toDate(),
+    });
+  });
 }
 
 export async function getReviewsByRestaurantId(db, restaurantId) {
